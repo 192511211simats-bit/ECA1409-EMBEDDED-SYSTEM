@@ -1,0 +1,132 @@
+#include <reg51.h>
+
+// Output Devices
+sbit MOTOR = P1^0;
+sbit BUZZER = P1^1;
+
+// Global Variables
+unsigned int temperature = 25;
+unsigned int pressure = 50;
+unsigned long totalSamples = 0;
+unsigned long safeSamples = 0;
+
+//---------------- UART Functions ----------------//
+
+void UART_Init()
+{
+    TMOD = 0x20;
+    TH1 = 0xFD;
+    SCON = 0x50;
+    TR1 = 1;
+}
+
+void UART_SendChar(char ch)
+{
+    SBUF = ch;
+    while(TI == 0);
+    TI = 0;
+}
+
+void UART_SendString(char *str)
+{
+    while(*str)
+    {
+        UART_SendChar(*str++);
+    }
+}
+
+void UART_SendNumber(unsigned int num)
+{
+    if(num >= 100)
+        UART_SendChar((num/100)+'0');
+
+    if(num >= 10)
+        UART_SendChar(((num/10)%10)+'0');
+
+    UART_SendChar((num%10)+'0');
+}
+
+//--------------- Delay ----------------//
+
+void delay()
+{
+    unsigned int i,j;
+
+    for(i=0;i<250;i++)
+        for(j=0;j<1275;j++);
+}
+
+//-------------- Sensor Simulation --------------//
+
+void ReadSensors()
+{
+    temperature++;
+
+    if(temperature>40)
+        temperature=25;
+
+    pressure+=5;
+
+    if(pressure>100)
+        pressure=50;
+}
+
+//-------------- Decision Logic ----------------//
+
+void SmartControl()
+{
+    totalSamples++;
+
+    if(temperature<35 && pressure<80)
+    {
+        MOTOR=1;
+        BUZZER=0;
+        safeSamples++;
+    }
+    else
+    {
+        MOTOR=0;
+        BUZZER=1;
+    }
+}
+
+//-------------- Performance Evaluation --------------//
+
+void Performance()
+{
+    unsigned int efficiency;
+
+    efficiency=(safeSamples*100)/totalSamples;
+
+    UART_SendString("Efficiency = ");
+    UART_SendNumber(efficiency);
+    UART_SendString("%\r\n");
+}
+
+//-------------- Main Program ----------------//
+
+void main()
+{
+    UART_Init();
+
+    while(1)
+    {
+        ReadSensors();
+
+        SmartControl();
+
+        UART_SendString("Temperature = ");
+        UART_SendNumber(temperature);
+        UART_SendString(" C\r\n");
+
+        UART_SendString("Pressure = ");
+        UART_SendNumber(pressure);
+        UART_SendString(" PSI\r\n");
+
+        Performance();
+
+        UART_SendString("----------------------\r\n");
+
+        delay();
+    }
+}
